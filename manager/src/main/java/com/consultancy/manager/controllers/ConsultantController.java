@@ -3,10 +3,16 @@ package com.consultancy.manager.controllers;
 import com.consultancy.manager.entities.Consultant;
 import com.consultancy.manager.entities.Skill;
 import com.consultancy.manager.enums.SkillLevel;
+import com.consultancy.manager.repositories.ConsultantRepository;
 
 import java.util.List;
 
 public class ConsultantController {
+    final ConsultantRepository consultantRepo;
+
+    public ConsultantController(ConsultantRepository repository) {
+        this.consultantRepo = repository;
+    }
 
     // POST /consultants - Nieuw consultant profiel aanmaken
     public Consultant addNewConsultant(Consultant consultant) {
