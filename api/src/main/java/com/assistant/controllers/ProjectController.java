@@ -18,11 +18,11 @@ public class ProjectController {
     private final ProjectRepository projectRepository;
 
     @Autowired
-    private final SkillRepository skillRepository;
+    private final SkillController skillController;
 
-    public ProjectController(ProjectRepository projectRepository, SkillRepository skillRepository) {
+    public ProjectController(ProjectRepository projectRepository, SkillController skillController) {
         this.projectRepository = projectRepository;
-        this.skillRepository = skillRepository;
+        this.skillController = skillController;
     }
 
     public Project addNewProject(ProjectDTO project) {
@@ -32,7 +32,7 @@ public class ProjectController {
         Set<ProjectSkill> projectSkills = new HashSet<>();
         for (ProjectSkillDTO skillDto : project.getRequiredSkills()) {
 
-            Skill skill = findOrCreateSkill(skillDto.getTechnology());
+            Skill skill = skillController.findOrCreateSkill(skillDto.getTechnology());
 
             ProjectSkill projectSkill = new ProjectSkill();
             projectSkill.setProject(newProject);
@@ -45,19 +45,6 @@ public class ProjectController {
 
         return projectRepository.save(newProject);
     }
-
-    public Skill findOrCreateSkill(String technology) {
-        Optional<Skill> existingSkill = skillRepository.findByTechnology(technology);
-
-        if (existingSkill.isPresent()) {
-            return existingSkill.get();
-        } else {
-            Skill newSkill = new Skill();
-            newSkill.setTechnology(technology);
-            return skillRepository.save(newSkill);
-        }
-    }
-
 
     public List<Project> getAllProjects() {
         return this.projectRepository.findAllWithSkills();

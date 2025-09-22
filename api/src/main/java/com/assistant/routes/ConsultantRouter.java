@@ -100,7 +100,16 @@ public class ConsultantRouter extends RouteBuilder {
     }
 
     public void getConsultantById(Exchange exchange) {
-        // consultant with skills
+        Long id = exchange.getMessage().getHeader("id", Long.class);
+        Consultant consultant = controller.getConsultantById(id);
+
+        ConsultantResponseDTO responseDTO = this.convertToDTO(consultant);
+
+        Message responseMessage = new DefaultMessage(exchange.getContext());
+        responseMessage.setBody(responseDTO);
+        responseMessage.setHeader(Exchange.HTTP_RESPONSE_CODE, HttpStatus.OK.value());
+
+        exchange.setMessage(responseMessage);
     }
 
     public void getConsultantSkills(Exchange exchange) {
@@ -108,6 +117,22 @@ public class ConsultantRouter extends RouteBuilder {
     }
 
     private void addConsultant(Exchange exchange) {
+        ConsultantDTO consultantDTO = exchange.getIn().getBody(ConsultantDTO.class);
+
+        if (consultantDTO == null) {
+            log.error("Incoming consultant entity is null.");
+            exchange.getMessage().setHeader(Exchange.HTTP_RESPONSE_CODE, HttpStatus.BAD_REQUEST.value());
+            exchange.getMessage().setBody("Request body is missing or invalid.");
+            return;
+        }
+
+        Consultant newConsultant = controller.addNewConsultant(consultantDTO);
+
+        Message responseMessage = new DefaultMessage(exchange.getContext());
+        responseMessage.setBody(newConsultant);
+        responseMessage.setHeader(Exchange.HTTP_RESPONSE_CODE, HttpStatus.CREATED.value());
+
+        exchange.setMessage(responseMessage);
     }
 
     public void updateSkillLevel(Exchange exchange) {
