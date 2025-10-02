@@ -27,4 +27,5 @@ public class SkillController {
             return skillRepository.save(newSkill);
         }
     }
+
 }
