@@ -3,6 +3,7 @@ package com.assistant.controllers;
 import com.assistant.entities.SlackNotificationPayload;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
@@ -17,20 +18,25 @@ import java.util.Map;
 @Component
 public class NotificationController {
 
+    @Autowired
     private final WebClient webClient;
 
-    private final Map<String, String> webhookUris = new HashMap<>();
+    // Map the constants used by the Camel router to the injected URIs
+    private final Map<String, String> webhookUris;
 
     @Autowired
-    public NotificationController(WebClient webClient) {
+    public NotificationController(WebClient webClient,
+                                  @Value("${slack.uri.frontend}") String frontendUri,
+                                  @Value("${slack.uri.backend}") String backendUri,
+                                  @Value("${slack.uri.general}") String generalUri) {
         this.webClient = webClient;
-    }
 
-    @PostConstruct
-    public void init() {
-        webhookUris.put("Frontend", "/T09JF0DCDNY/B09HW5W08UX/EmB4f1oX0CczZntj53v6k72V");
-        webhookUris.put("Backend", "/T09JF0DCDNY/B09J57H66RH/ubG6Er0AN4sVfLgx5UlKYmN7");
-        webhookUris.put("General", "/T09JF0DCDNY/B09J9GHGZ7G/VGxYInuo8DXzebfJywN7CGfY");
+        // Initialize the map here using the injected values
+        this.webhookUris = Map.of(
+                "Frontend", frontendUri,
+                "Backend", backendUri,
+                "General", generalUri
+        );
     }
 
     public void slackNotify(String type, String message) {
