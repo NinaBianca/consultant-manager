@@ -24,17 +24,15 @@ public class ProjectController {
     @Autowired
     private final SkillController skillController;
 
-    @Autowired
-    private final NotificationController notificationController;
-
     private final List<String> frontend;
 
     private final List<String> backend;
 
-    public ProjectController(ProjectRepository projectRepository, SkillController skillController, NotificationController notificationController) {
+    public ProjectController(ProjectRepository projectRepository, SkillController skillController) {
         this.projectRepository = projectRepository;
         this.skillController = skillController;
-        this.notificationController = notificationController;
+
+        // FIXME static list of skills
 
         this.frontend = new ArrayList();
         frontend.add("REACT");
@@ -66,22 +64,6 @@ public class ProjectController {
         newProject.setRequiredSkills(projectSkills);
 
         Project added = projectRepository.save(newProject);
-
-//        if(added != null) {
-//            Set<ProjectSkill> skills = added.getRequiredSkills();
-//            for (ProjectSkill skill: skills) {
-//                if(this.frontend.contains(skill.getSkill().getTechnology().toUpperCase())) {
-//                    Mono<String> notificationMono = notificationController.slackNotifyFrontend(
-//                            "New project added: " + added.getProjectDescription()
-//                    );
-//
-//                    notificationMono.subscribe(
-//                            response -> System.out.println("Slack notification successful: " + response),
-//                            error -> System.err.println("Slack notification failed: " + error.getMessage())
-//                    );
-//                }
-//            }
-//        }
 
         return added;
     }

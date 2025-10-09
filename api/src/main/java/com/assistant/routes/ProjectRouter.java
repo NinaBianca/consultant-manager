@@ -1,46 +1,52 @@
 package com.assistant.routes;
 
-import com.assistant.controllers.NotificationController;
 import com.assistant.controllers.ProjectController;
 import com.assistant.dtos.ProjectDTO;
 import com.assistant.dtos.ProjectResponseDTO;
-import com.assistant.dtos.ProjectSkillResponseDTO;
 import com.assistant.entities.Project;
+import com.slack.api.model.block.Blocks;
+import com.slack.api.model.block.LayoutBlock;
+import com.slack.api.model.block.SectionBlock;
+import com.slack.api.model.block.composition.MarkdownTextObject;
 import org.apache.camel.Exchange;
-import org.apache.camel.LoggingLevel;
 import org.apache.camel.Message;
 import org.apache.camel.builder.RouteBuilder;
-import org.apache.camel.model.dataformat.JsonLibrary;
 import org.apache.camel.model.rest.RestBindingMode;
 import org.apache.camel.support.DefaultMessage;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
+import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 @Component
 public class ProjectRouter extends RouteBuilder {
-    @Autowired
-    final private ProjectController controller;
 
-    @Autowired
-    final private NotificationController notificationController;
+    private ProjectController controller;
+
+    @Value("${slack.channel.frontend}")
+    private String frontendChannel;
+
+    @Value("${slack.channel.backend}")
+    private String backendChannel;
+
+    @Value("${slack.channel.general}")
+    private String generalChannel;
 
     public static final String NOTIFICATION_TYPE_HEADER = "ProjectNotificationType";
     public static final String FRONTEND_TYPE = "Frontend";
     public static final String BACKEND_TYPE = "Backend";
     public static final String GENERAL_TYPE = "General";
+    public static final String SLACK_CHANNEL_NAME_HEADER = "SlackChannelName";
 
     private final Set<String> FRONTEND_SKILLS = Set.of("REACT", "ANGULAR", "VUE", "JAVASCRIPT", "TYPESCRIPT", "HTML", "CSS");
     private final Set<String> BACKEND_SKILLS  = Set.of("JAVA", "SPRING BOOT", "PYTHON", "DJANGO", "GOLANG", "NODE.JS", "C#");
 
-    public ProjectRouter(ProjectController controller, NotificationController notificationController) {
+    public ProjectRouter(ProjectController controller) {
         this.controller = controller;
-        this.notificationController = notificationController;
     }
 
     @Override
@@ -70,22 +76,25 @@ public class ProjectRouter extends RouteBuilder {
 
                 .when(header("NeedsFrontendNotification").isEqualTo(true))
                 .setHeader(NOTIFICATION_TYPE_HEADER, constant(FRONTEND_TYPE))
+                .setHeader(SLACK_CHANNEL_NAME_HEADER, constant(frontendChannel))
                 .to("direct:prepare-and-notify")
 
                 .when(header("NeedsBackendNotification").isEqualTo(true))
                 .setHeader(NOTIFICATION_TYPE_HEADER, constant(BACKEND_TYPE))
+                .setHeader(SLACK_CHANNEL_NAME_HEADER, constant(backendChannel))
                 .to("direct:prepare-and-notify")
 
                 .otherwise()
                 .setHeader(NOTIFICATION_TYPE_HEADER, constant(GENERAL_TYPE))
+                .setHeader(SLACK_CHANNEL_NAME_HEADER, constant(generalChannel))
                 .to("direct:prepare-and-notify")
                 .end();
 
         from("direct:prepare-and-notify")
                 .log("Preparing Slack message for ${header.ProjectNotificationType} channel.")
                 .process(this::prepareSlackMessage)
-                .bean(notificationController, "slackNotify(${header.ProjectNotificationType}, ${body})")
-                .log("Slack notification process initiated successfully.");
+                .toD("slack:${header.SlackChannelName}")
+                .log("Slack notification process initiated successfully to channel: ${header.SlackChannelName}");
     }
 
     public void setNotificationRouteHeader(Exchange exchange) {
@@ -114,11 +123,49 @@ public class ProjectRouter extends RouteBuilder {
     public void prepareSlackMessage(Exchange exchange) {
         Project project = exchange.getIn().getBody(Project.class);
         String projectType = exchange.getIn().getHeader(NOTIFICATION_TYPE_HEADER, GENERAL_TYPE, String.class);
-        String description = project.getProjectDescription();
 
-        String title = String.format("*New %s Project Added:*", projectType);
+        if (project == null) {
+            log.warn("Project entity is null when preparing Slack message.");
+            return;
+        }
 
-        String slackMessage = title + "\n" + description;
+        String titleText = String.format("*New %s Project Added:*", projectType);
+        String descriptionText = project.getProjectDescription();
+
+        String skills = project.getRequiredSkills().stream()
+                .map(ps -> ps.getSkill().getTechnology())
+                .collect(Collectors.joining(", "));
+        String skillsText = String.format("*Required Skills:* %s", skills);
+
+
+        List<LayoutBlock> blocks = Arrays.asList(
+                // Title Section Block
+                SectionBlock.builder()
+                        .text(MarkdownTextObject.builder()
+                                .text(titleText)
+                                .build())
+                        .build(),
+
+                // Description Section Block
+                SectionBlock.builder()
+                        .text(MarkdownTextObject.builder()
+                                .text(descriptionText)
+                                .build())
+                        .build(),
+
+                // Divider
+                Blocks.divider(),
+
+                // Skills Section Block
+                SectionBlock.builder()
+                        .text(MarkdownTextObject.builder()
+                                .text(skillsText)
+                                .build())
+                        .build()
+        );
+
+        com.slack.api.model.Message slackMessage = new com.slack.api.model.Message();
+        slackMessage.setBlocks(blocks);
 
         exchange.getIn().setBody(slackMessage);
     }
